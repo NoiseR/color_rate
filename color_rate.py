@@ -1,5 +1,6 @@
 from pywinauto.application import Application
 from pywinauto.keyboard import send_keys
+from pywinauto.timings import Timings
 from PIL import Image
 import time
 import re
@@ -8,7 +9,7 @@ import os
 CONNECT_APP_TIMEOUT = 1
 PROCESS_APP_TIMEOUT = 1
 START_APP_TIMEOUT   = 10
-WAIT_GUI_TIMEOUT    = 20
+WAIT_GUI_TIMEOUT    = 40
 
 def get_mainw(app, timeout):
     mainw = app.window(best_match = 'GTX Graphics Lab')
@@ -113,6 +114,7 @@ test_colors = ['black', 'white', 'color']
 test_sizes = ['kids', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 
 def test_rate(glab_path, image_folder):
+    Timings.slow()
     imgs = []
     valid_images = ['.jpg', '.gif', '.png', '.tga']
     for f in os.listdir(image_folder):
