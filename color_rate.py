@@ -5,11 +5,14 @@ from PIL import Image
 import time
 import re
 import os
+import time
+import json
+import sys
 
 CONNECT_APP_TIMEOUT = 1
 PROCESS_APP_TIMEOUT = 1
 START_APP_TIMEOUT   = 10
-WAIT_GUI_TIMEOUT    = 40
+WAIT_GUI_TIMEOUT    = 60
 
 def get_mainw(app, timeout):
     mainw = app.window(best_match = 'GTX Graphics Lab')
@@ -19,7 +22,7 @@ def get_mainw(app, timeout):
 
 def connect_glab():
     try:
-        app = Application(backend='uia').connect(title_re = '.*GTX Graphics Lab.*', timeout = 10)    
+        app = Application(backend='uia').connect(title_re = 'GTX Graphics Lab.*', timeout = 10) 
         return get_mainw(app, CONNECT_APP_TIMEOUT)
     except:
         return None
@@ -84,20 +87,22 @@ def get_color_rate(mainw, image_path, size, color):
     mainw.Print.click()
     time.sleep(PROCESS_APP_TIMEOUT)
     mainw.child_window(best_match = 'Print Settings').wait('visible', timeout = WAIT_GUI_TIMEOUT)
+    
     # select ink
+    #if color == 'black':
+    #    index = '2'
+    #elif color == 'white':
+    #    index = '0'
+    #else:
+    #    index = '2'
+    #mainw.ComboBox3.type_keys('{UP 10}{DOWN ' + index + '}')
     if color == 'black':
-        index = '2'
+        index = '1'
     elif color == 'white':
-        index = '0'
+        index = '3'
     else:
         index = '2'
-    mainw.ComboBox3.type_keys('{UP 10}{DOWN ' + index + '}')
-    
-    # use background
-    #if color == 'black':
-    #    mainw.Static7.click_input()
-    #mainw.print_control_identifiers()
-    #return 'test'
+    mainw.ComboBox2.type_keys('{UP 10}{DOWN ' + index + '}')
     
     mainw.Print2.click()
     preview = Application(backend='uia').connect(title_re = '.*Brother GTX pro File Output Preview window.*', timeout = WAIT_GUI_TIMEOUT)    
@@ -113,7 +118,36 @@ def get_color_rate(mainw, image_path, size, color):
 test_colors = ['black', 'white', 'color']
 test_sizes = ['kids', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL']
 
-def test_rate(glab_path, image_folder):
+class ImageDesc:
+    def __init__(self, image, size, color, rate):
+        self.image = image
+        self.size  = size
+        self.color = color
+        self.rate  = rate
+    def to_json(self):
+        return json.dumps(self, default=lambda o: o.__dict__, sort_keys=True, indent=None, separators=(',', ': '))
+
+def image_rate(glab_path, image_path, size, color):
+    if size not in test_sizes:
+        return "[size error]"
+    if color not in test_colors:
+        return "[color error]"
+
+    Timings.slow()
+    mainw = connect_glab()
+    if not mainw:
+        mainw = start_glab(glab_path)
+    if not mainw:
+        return '[run error]'
+        
+    start_time = time.time()
+    rate = get_color_rate(mainw, image_path, size, color)
+    end_time = time.time()
+    image = ImageDesc(image_path, size, color, rate)
+    print(image.to_json() + ": " + str(end_time - start_time) + " sec")
+    return image.to_json()
+
+def folder_rate(glab_path, image_folder):
     Timings.slow()
     imgs = []
     valid_images = ['.jpg', '.gif', '.png', '.tga']
@@ -125,21 +159,40 @@ def test_rate(glab_path, image_folder):
     
     mainw = connect_glab()
     if not mainw:
-        mainw = start_glab(r'C:\\GTX Graphics Lab\\nw.exe')
+        mainw = start_glab(glab_path)
     if not mainw:
         return '[run error]'
     
+    json_report =               '{\n'
+    json_report = json_report + '    "images":\n'
+    json_report = json_report + '    [\n'
     total_rate = [0, 0]
     for img in imgs:
         for size in test_sizes:
             for color in test_colors:
+                start_time = time.time()
                 rate = get_color_rate(mainw, image_folder + img, size, color)
-                print(img + ' : ' + size + ' : ' + color + ' : ' + str(rate))
-                total_rate = total_rate + rate
-    return total_rate
+                end_time = time.time()
+                image = ImageDesc(image_folder + img, size, color, rate)
+                json_report = json_report + '        ' + image.to_json() + ',\n'
+                
+                print(image.to_json() + ": " + str(end_time - start_time) + " sec")
+                    
+                total_rate[0] = total_rate[0] + rate[0]
+                total_rate[1] = total_rate[1] + rate[1]
+    json_report = json_report[:-1]
+    json_report = json_report + '    ],\n'
+    json_report = json_report + '    "total_rate": ' + str(total_rate) + '\n'
+    json_report = json_report + '}'
+    return json_report
 
 if __name__ == "__main__":
-
-    print(test_rate(r'C:\\GTX Graphics Lab\\nw.exe', 'Z:\\test картинки\\'))
+    if len(sys.argv) == 5:
+        print(image_rate(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]))
+    elif len(sys.argv) == 3:
+        print(folder_rate(sys.argv[1], sys.argv[2]))
+    
+    #print(image_rate(r'C:\GTX Graphics Lab\nw.exe', r'Z:\test картинки\1.png', 'XL', 'black'))
+    #print(folder_rate(r'C:\\GTX Graphics Lab\\nw.exe', 'Z:\\test картинки\\'))
 
 
