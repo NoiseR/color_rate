@@ -9,6 +9,7 @@ import time
 import json
 import sys
 
+RUN_LIMIT           = 100
 CONNECT_APP_TIMEOUT = 1
 PROCESS_APP_TIMEOUT = 1
 START_APP_TIMEOUT   = 10
@@ -33,6 +34,11 @@ def start_glab(glab_path):
         return get_mainw(app, START_APP_TIMEOUT)
     except:
         return None
+        
+def close_glab(mainw):
+    mainw.Button13.click()
+    if mainw.child_window(best_match = "Don't Save").exists():
+        mainw.child_window(best_match = "Don't Save").click()
 
     
 def size_to_region(size):
@@ -53,6 +59,21 @@ def set_edit_text(edit, text):
     
 def get_float(string):
     return float(re.findall(r"[-+]?\d*\.\d+|\d+", string)[0])
+
+settings = {'run' : 0}
+
+def load_settings():
+    global settings
+    try:
+        with open('settings.ini', 'r') as f:
+            settings = json.load(f)
+    except:
+        settings = {'run' : 0}
+    
+def save_settings():
+    global settings
+    with open('settings.ini', 'w') as f:
+        json.dump(settings, f)
 
 def get_color_rate(mainw, image_path, size, color):
     #close old
@@ -137,9 +158,17 @@ def image_rate(glab_path, image_path, size, color):
     mainw = connect_glab()
     if not mainw:
         mainw = start_glab(glab_path)
+    else:
+        if settings['run'] > RUN_LIMIT:
+            close_glab(mainw)
+            mainw = start_glab(glab_path)
+            settings['run'] = 0
+    
     if not mainw:
         return '[run error]'
-        
+    
+    settings['run'] = settings['run'] + 1
+    
     start_time = time.time()
     rate = get_color_rate(mainw, image_path, size, color)
     end_time = time.time()
@@ -187,11 +216,12 @@ def folder_rate(glab_path, image_folder):
     return json_report
 
 if __name__ == "__main__":
+    load_settings()
     if len(sys.argv) == 5:
         print(image_rate(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]))
     elif len(sys.argv) == 3:
         print(folder_rate(sys.argv[1], sys.argv[2]))
-    
+    save_settings()
     #print(image_rate(r'C:\GTX Graphics Lab\nw.exe', r'Z:\test картинки\1.png', 'XL', 'black'))
     #print(folder_rate(r'C:\\GTX Graphics Lab\\nw.exe', 'Z:\\test картинки\\'))
 
